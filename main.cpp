@@ -14,20 +14,20 @@
 #define BITSTRENGTH  14              /* size of prime number (p) in bits */
 #define DEBUG true
 
-void generate_prime(mpz_t num, int bit_strength) {
+void generate_prime(mpz_t p, int bit_strength) {
     // Initialiser l'état aléatoire avec le temps
     gmp_randstate_t gmpRandState;
     gmp_randinit_default(gmpRandState);
     gmp_randseed_ui(gmpRandState, static_cast<unsigned long>(time(NULL)));
 
     // Génère un nombre aléatoire avec le nombre spécifié de bits
-    mpz_urandomb(num, gmpRandState, bit_strength);
+    mpz_urandomb(p, gmpRandState, bit_strength);
 
     // Assurez-vous que le nombre est impair (dernier bit est 1)
-    mpz_setbit(num, 0);
+    mpz_setbit(p, 0);
 
     // Trouve le prochain nombre premier à partir de la valeur générée
-    mpz_nextprime(num, num);
+    mpz_nextprime(p, p);
 
     // Libérer la mémoire de l'état aléatoire
     gmp_randclear(gmpRandState);
@@ -41,6 +41,24 @@ void generate_secret(mpz_t s, int bit_strength, mpz_t p) {
 
     // Génère un nombre aléatoire avec le nombre spécifié de bits et le prime number spécifié
     mpz_urandomm(s, gmpRandState, p);
+
+    // Libérer la mémoire de l'état aléatoire
+    gmp_randclear(gmpRandState);
+}
+
+void generate_coefficient(mpz_t coeff, mpz_t p, int change) {
+    // Initialiser l'état aléatoire avec le temps et le nombre 7777 pour un des 2 coeffs pour qu'ils soient différents
+    gmp_randstate_t gmpRandState;
+    gmp_randinit_default(gmpRandState);
+    if (change >= 1)
+    {
+        gmp_randseed_ui(gmpRandState, static_cast<unsigned long>(time(NULL)));
+    } else {
+        gmp_randseed_ui(gmpRandState, static_cast<unsigned long>(time(NULL) ^ 7777));
+    }
+
+    // Générer un coefficient aléatoire dans Z/pZ
+    mpz_urandomm(coeff, gmpRandState, p);
 
     // Libérer la mémoire de l'état aléatoire
     gmp_randclear(gmpRandState);
@@ -103,10 +121,13 @@ int main()
     /*
      *  Step 3: Initialize Coefficient of polynom
      */
-    mpz_init(a1); mpz_init_set_str(a1, "3", 0);
-    mpz_init(a2); mpz_init_set_str(a2, "10", 0);
-    
-    //TODO: Delete this part and compute the coeffiecients randomly ( warning: inside Z/pZ )
+    mpz_init(a1);
+    mpz_init(a2);
+    int change = 0;
+
+    generate_coefficient(a1, p, change);
+    change++;
+    generate_coefficient(a2, p, change);
     
     if (DEBUG)
     {

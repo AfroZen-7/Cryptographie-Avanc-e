@@ -8,6 +8,7 @@
 #include <gmpxx.h>
 #include <cstdlib>
 #include <ctime>
+#include <unistd.h>
 
 #define BUFFER_SIZE 1024 //Pour faire la fonction de génération aléatoire de prime number
 #define BITSTRENGTH  14              /* size of prime number (p) in bits */
@@ -27,6 +28,19 @@ void generate_prime(mpz_t num, int bit_strength) {
 
     // Trouve le prochain nombre premier à partir de la valeur générée
     mpz_nextprime(num, num);
+
+    // Libérer la mémoire de l'état aléatoire
+    gmp_randclear(gmpRandState);
+}
+
+void generate_secret(mpz_t s, int bit_strength, mpz_t p) {
+    // Initialiser l'état aléatoire avec le temps et le nombre 4444
+    gmp_randstate_t gmpRandState;
+    gmp_randinit_default(gmpRandState);
+    gmp_randseed_ui(gmpRandState, static_cast<unsigned long>(time(NULL) ^ 4444));
+
+    // Génère un nombre aléatoire avec le nombre spécifié de bits et le prime number spécifié
+    mpz_urandomm(s, gmpRandState, p);
 
     // Libérer la mémoire de l'état aléatoire
     gmp_randclear(gmpRandState);
@@ -62,8 +76,8 @@ int main()
     /*
      *  Step 1: Initialize Prime Number : we work into Z/pZ
      */
-    
-    //TODO: Delete this part and compute a prime number randomly
+
+    mpz_init(p);
     generate_prime(p, BITSTRENGTH);
 
     if (DEBUG)
@@ -76,9 +90,9 @@ int main()
      *  Step 2: Initialize Secret Number
      */
 
-    mpz_init(S); mpz_init_set_str(S, "5", 0);
-    
-    //TODO: Delete this part and compute the secret randomly ( warning: inside Z/pZ )
+    // Générer le nombre secret aléatoirement dans Z/pZ
+    mpz_init(S);
+    generate_secret(S,BITSTRENGTH,p);
     
     if (DEBUG)
     {

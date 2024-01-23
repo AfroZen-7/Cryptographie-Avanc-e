@@ -46,22 +46,37 @@ void generate_secret(mpz_t s, int bit_strength, mpz_t p) {
     gmp_randclear(gmpRandState);
 }
 
-void generate_coefficient(mpz_t coeff, mpz_t p, int change) {
-    // Initialiser l'état aléatoire avec le temps et le nombre 7777 pour un des 2 coeffs pour qu'ils soient différents
+void generate_coefficient(mpz_t coeff, mpz_t p, int & change) {
+    // Initialiser l'état aléatoire avec le temps et un nombre aléatoire
+    int diff_seed = 0;
+    srand(time(NULL));
+    for (int i = 0; i < change; i++) {diff_seed = rand() % 1000;}
     gmp_randstate_t gmpRandState;
     gmp_randinit_default(gmpRandState);
-    if (change >= 1)
-    {
-        gmp_randseed_ui(gmpRandState, static_cast<unsigned long>(time(NULL)));
-    } else {
-        gmp_randseed_ui(gmpRandState, static_cast<unsigned long>(time(NULL) ^ 7777));
-    }
+    gmp_randseed_ui(gmpRandState, static_cast<unsigned long>(time(NULL) ^ diff_seed));
 
     // Générer un coefficient aléatoire dans Z/pZ
     mpz_urandomm(coeff, gmpRandState, p);
 
     // Libérer la mémoire de l'état aléatoire
     gmp_randclear(gmpRandState);
+
+    change++;
+}
+
+void compute_shares(mpz_t x, mpz_t y, mpz_t p, int bit_strength) {
+    // Générer un coefficient aléatoire dans Z/pZ
+    mpz_t a;
+    mpz_init(a);
+    int c = 1;
+    generate_coefficient(a, p, c);
+
+    // Évaluer le polynôme P(x) = a * x^2 mod p
+    mpz_mul(y, a, x);
+    mpz_mod(y, y, p);
+
+    // Libérer la mémoire
+    mpz_clear(a);
 }
 
 /* Main subroutine */
@@ -123,10 +138,9 @@ int main()
      */
     mpz_init(a1);
     mpz_init(a2);
-    int change = 0;
+    int change = 1;
 
     generate_coefficient(a1, p, change);
-    change++;
     generate_coefficient(a2, p, change);
     
     if (DEBUG)
@@ -145,12 +159,10 @@ int main()
     mpz_init(x3); mpz_init_set_str(x3, "6", 0);
     mpz_init(x4); mpz_init_set_str(x4, "8", 0);
 
-    mpz_init(y1); mpz_init_set_str(y1, "7", 0);
-    mpz_init(y2); mpz_init_set_str(y2, "1", 0);
-    mpz_init(y3); mpz_init_set_str(y3, "9", 0);
-    mpz_init(y4); mpz_init_set_str(y4, "9", 0);
-    
-    //TODO: Delete this part and compute the shares of all users with public login
+    mpz_init(y1); compute_shares(x1, y1, p, BITSTRENGTH);
+    mpz_init(y2); compute_shares(x2, y2, p, BITSTRENGTH);
+    mpz_init(y3); compute_shares(x3, y3, p, BITSTRENGTH);
+    mpz_init(y4); compute_shares(x4, y4, p, BITSTRENGTH);
     
     if (DEBUG)
     {

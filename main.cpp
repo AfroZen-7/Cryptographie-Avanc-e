@@ -5,69 +5,81 @@
 #define BITSTRENGTH 14
 #define DEBUG true
 
-// Function to generate a random prime number
+// Fonction qui génère un nombre premier avec un nombre de bits donné
 void generate_prime(mpz_t num, int bit_strength, gmp_randstate_t gmpRandState) 
 {
+    // Génère un nombre aléatoire avec un nombre de bits donné en prenant un état aléatoire
     mpz_urandomb(num, gmpRandState, bit_strength);
+
+    // On met le dernier bit à 1 pour qu'il soit impair car les nombres premiers supérieurs à 2 sont tous impairs
     mpz_setbit(num, 0);
+
+    // On trouve le nombre premier le plus proche du nombre aléatoire généré
     mpz_nextprime(num, num);
 }
 
-// Function to generate a random secret within the range [0, prime)
+// Fonction qui génère un secret de façon aléatoire dans l'intervalle [0; prime] 
 void generate_secret(mpz_t secret, mpz_t prime, gmp_randstate_t gmpRandState) 
 {
     mpz_urandomm(secret, gmpRandState, prime);
 }
 
-// Function to generate coefficients for the polynomial and set the last coefficient as the secret
-void generate_coefficients(mpz_t* coefficients, mpz_t prime, int& change, mpz_t secret, gmp_randstate_t gmpRandState) 
+// Fonction qui génère les coefficients du polynome
+void generate_coefficients(std::vector<mpz_t> & coefficients, mpz_t prime, int & k, mpz_t secret, gmp_randstate_t gmpRandState) 
 {
-    // Generate random coefficients for the polynomial
-    for (int i = 0; i < change - 1; i++) {
+    // Génère les coefficients aléatoirement dans l'intervalle [0; prime] et les stocke dans le vecteur de coefficients
+    for (int i = 0; i < k - 1; i++) {
+        mpz_init(coefficients[i]);
         mpz_urandomm(coefficients[i], gmpRandState, prime);
     }
 
-    // Set the last coefficient as the secret
-    mpz_set(coefficients[change - 1], secret);
+    // On met le coefficient nulle égale au secret
+    mpz_set(coefficients[k - 1], secret);
 }
 
-// Function to compute shares for a given user
-void compute_shares(mpz_t x, mpz_t y, mpz_t* coefficients, int change) 
+// Fonction qui calcul les yi des points avec des xi et des coefficients donnés, k fois  
+void compute_shares(std::vector<mpz_t> & x, std::vector<mpz_t> & y, mpz_t * coefficients, int k) 
 {
-    // Initialize y to 0
-    mpz_init_set_ui(y, 0);
-
     mpz_t temp;
-    mpz_init(temp);
 
-    // Compute the polynomial expression for the given x
-    for (int j = 0; j < change; j++) {
-        mpz_pow_ui(temp, x, j);     // x^j
-        mpz_mul(temp, temp, coefficients[j]);  // coefficients[j] * x^j
-        mpz_add(y, y, temp);        // Sum up the terms
+    for (int i = 0; i < k; i++) // On parcourt le vecteur des xi, yi pour un seuil donné k
+    {
+        // Initialise yi à 0
+        mpz_init_set_ui(y[i], 0);
+
+        mpz_init(temp); // Utilisation d'un temp pour ne pas écraser les anciennes valeurs des yi
+
+        // Calcul des yi pour des xi et coefficients donnés
+        for (int j = 0; j < k; j++) 
+        {
+            mpz_pow_ui(temp, x[i], j);     // x^j
+            mpz_mul(temp, temp, coefficients[j]);  // coefficients[j] * x^j
+            mpz_add(y[i], y[i], temp);        // On met le résultat de coefficients[j] * x^j dans yi
+        }
     }
-
     mpz_clear(temp);
 }
 
-// Function to compute Lagrange coefficients for interpolation
-void compute_lagrange_coefficients(std::vector<mpz_t>& alphas, mpz_t* x, int k, mpz_t prime) 
+// Fonction qui calcul les coefficients de Lagrange
+void compute_lagrange_coefficients(std::vector<mpz_t> & alphas, mpz_t * x, int k, mpz_t prime) 
 {
-    // Compute the Lagrange coefficients for interpolation
-    for (int i = 0; i < k; i++) {
+    // Calcul des coefficients de Lagrange pour l'interpolation
+    for (int i = 0; i < k; i++) 
+    {
         mpz_init(alphas[i]);
-        mpz_init_set_ui(alphas[i], 1);
+        mpz_init_set_ui(alphas[i], 1); // Car alphas[i](xi) = 1
 
-        for (int j = 0; j < k; j++) {
+        for (int j = 0; j < k; j++) 
+        {
             if (j != i) {
                 mpz_t temp;
                 mpz_init(temp);
 
-                // Compute (x[j] - x[i])^-1 mod prime
-                mpz_sub(temp, x[j], x[i]);
-                mpz_invert(temp, temp, prime);
+                // Calcul : (x[j] - x[i])^-1 modulo prime
+                mpz_sub(temp, x[j], x[i]); // x[j] - x[i]
+                mpz_invert(temp, temp, prime); // Calcul l'inverse multiplicatif de (x[j] - x[i]) puis on fait le modulo prime
 
-                // Update the Lagrange coefficient
+                // Met à jour le coefficient de Lagrange
                 mpz_mul(alphas[i], alphas[i], temp);
                 mpz_clear(temp);
             }
@@ -75,10 +87,10 @@ void compute_lagrange_coefficients(std::vector<mpz_t>& alphas, mpz_t* x, int k, 
     }
 }
 
-// Function to reconstruct the secret using Lagrange coefficients and shares
-void reconstruct_secret(mpz_t reconstructedSecret, std::vector<mpz_t>& alphas, mpz_t* shares, int k, mpz_t p) 
+// Fonction de recronstruction de secret avec k coefficients, k parts et p
+void reconstruct_secret(mpz_t reconstructedSecret, std::vector<mpz_t> & alphas, mpz_t * shares, int k, mpz_t p) 
 {
-    // Initialize the reconstructed secret to 0
+    // Initialisation à 0
     mpz_init_set_ui(reconstructedSecret, 0);
 
     mpz_t temp;
@@ -86,11 +98,11 @@ void reconstruct_secret(mpz_t reconstructedSecret, std::vector<mpz_t>& alphas, m
 
     // Reconstruct the secret using Lagrange interpolation
     for (int i = 0; i < k; i++) {
-        mpz_mul(temp, alphas[i], shares[i]);
-        mpz_add(reconstructedSecret, reconstructedSecret, temp);
+        mpz_mul(temp, alphas[i], shares[i]); // alpha[i] * y[i]
+        mpz_add(reconstructedSecret, reconstructedSecret, temp); // Mise à jour du résultat
     }
 
-    // Take the result modulo p
+    // On module par p pour obtenir le Secret
     mpz_mod(reconstructedSecret, reconstructedSecret, p);
     mpz_clear(temp);
 }
@@ -110,7 +122,7 @@ int main()
     std::vector<mpz_t> x(n);  // Login users
     std::vector<mpz_t> y(n);  // Shares of users
 
-    // Initialize GMP random state
+    // Initialisation de l'état aléatoire GMP
     gmp_randstate_t gmpRandState;
     gmp_randinit_default(gmpRandState);
     gmp_randseed_ui(gmpRandState, static_cast<unsigned long>(time(NULL)));
@@ -154,10 +166,7 @@ int main()
      * Step 3: Initialize Coefficient of polynomial
      */
 
-    // Initialize coefficients of the polynomial
-    for (int i = 0; i < k - 1; i++) {
-        mpz_init(a[i]);
-    }
+    generate_coefficients(a, p, k, S, gmpRandState);
     mpz_init_set(a[k - 1], S);
 
     if (DEBUG) 
@@ -172,17 +181,14 @@ int main()
      * Step 4: Shares computation for each user (xi, yi)
      */
 
-    // Initialize login users
+    // Initialisation des logins (x) des utilisateurs (abscisses des points)
     for (int i = 0; i < n; i++) {
         mpz_init(x[i]);
-        mpz_set_ui(x[i], i + 1);
+        mpz_set_ui(x[i], (i + 1) * 2);
     }
 
-    // Compute shares for each user
-    for (int i = 0; i < n; i++) {
-        mpz_init(y[i]);
-        compute_shares(x[i], y[i], a.data(), k);
-    }
+    compute_shares(x, y, a.data(), k);
+
 
     if (DEBUG) 
     {
@@ -203,10 +209,7 @@ int main()
      * Step 5: Sample for reconstruct the secret with 3 users (x1, x2, x3)
      */
 
-    // Compute Lagrange coefficients
     compute_lagrange_coefficients(alphas, x.data(), k, p);
-
-    // Reconstruct the secret
     reconstruct_secret(Sr, alphas, y.data(), k, p);
 
     if (DEBUG) 
